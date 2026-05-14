@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+tokenless = [
+    "kernels/smoke/smoke.py",
+    "kernels/gpt_oss_20b/run.template.py",
+    "kernels/gpt_oss_20b/serve.template.py",
+]
+
+[project]
+name = "tokenless"
+version = "0.1.0"
+description = "Use Kaggle free GPU notebooks as an LLM inference backend."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "Mehdi Rafeie" }]
+keywords = ["tokenless", "llm", "kaggle", "free-gpu", "inference", "agents", "ollama"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "openai>=1.0",
+    "kaggle>=1.6",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+strands = ["strands-agents>=0.1"]
+langchain = ["langchain-openai>=0.1", "langchain>=0.2"]
+all = ["tokenless[strands,langchain]"]
+dev = ["build", "pytest", "pytest-asyncio", "ruff", "mypy", "setuptools>=68", "twine"]
+
+[project.urls]
+Homepage = "https://github.com/mrafeie/tokenless"
+Repository = "https://github.com/mrafeie/tokenless"
+Issues = "https://github.com/mrafeie/tokenless/issues"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
