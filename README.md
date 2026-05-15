@@ -66,6 +66,63 @@ installs Ollama, downloads the model, and opens the public endpoint. Pass
 
 ## Agent Integrations
 
+### OpenAI Agents SDK
+
+```bash
+pip install -e ".[agents]"
+```
+
+```python
+from agents import Agent, Runner, function_tool
+from tokenless import TokenlessLLM
+
+@function_tool
+def word_count(text: str) -> int:
+    """Count the number of words in a piece of text."""
+    return len(text.split())
+
+with TokenlessLLM(model="gpt-oss:20b") as llm:
+    agent = Agent(
+        name="Tokenless assistant",
+        instructions="Use tools when helpful. Keep answers concise.",
+        model=llm.as_agents_model(),
+        tools=[word_count],
+    )
+    result = Runner.run_sync(agent, "Explain asyncio, then count the words.")
+    print(result.final_output)
+```
+
+If you are running in Jupyter, IPython, VS Code interactive, or another
+environment that already has an event loop, use the async runner instead:
+
+```python
+from agents import Agent, Runner, function_tool
+from tokenless import TokenlessLLM
+
+@function_tool
+def word_count(text: str) -> int:
+    """Count the number of words in a piece of text."""
+    return len(text.split())
+
+llm = TokenlessLLM(model="gpt-oss:20b")
+llm.start()
+
+agent = Agent(
+    name="Tokenless assistant",
+    instructions="Use tools when helpful. Keep answers concise.",
+    model=llm.as_agents_model(),
+    tools=[word_count],
+)
+
+result = await Runner.run(agent, "Explain asyncio, then count the words.")
+print(result.final_output)
+
+llm.stop()
+```
+
+Tokenless uses the Agents SDK chat-completions model adapter because Ollama
+exposes an OpenAI-compatible Chat Completions endpoint.
+
 ### Strands Agents
 
 ```python

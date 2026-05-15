@@ -396,6 +396,13 @@ class TokenlessLLM:
         from tokenless.providers.langchain import TokenlessLangChainLLM
         return TokenlessLangChainLLM(base_url=self._base_url, model=self.model)
 
+    def as_agents_model(self, **kwargs):
+        """Return an OpenAI Agents SDK model backed by this endpoint."""
+        self._assert_inference()
+        from tokenless.providers.openai_agents import TokenlessAgentsModel
+
+        return TokenlessAgentsModel(base_url=self._base_url, model=self.model, **kwargs)
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

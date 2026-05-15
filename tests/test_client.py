@@ -14,3 +14,10 @@ def test_send_requires_start():
 
     with pytest.raises(RuntimeError, match=r"Call \.start\(\) first"):
         llm.send("hello")
+
+
+def test_agents_model_requires_running_endpoint():
+    llm = TokenlessLLM(model=GPT_OSS_MODEL_ID)
+
+    with pytest.raises(RuntimeError, match="Call .start"):
+        llm.as_agents_model()

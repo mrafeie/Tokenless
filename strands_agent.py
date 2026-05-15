@@ -22,7 +22,7 @@ def summarise(text: str) -> str:
     return text[:280] + ("..." if len(text) > 280 else "")
 
 
-with TokenlessLLM(model="llama3.1-8b") as llm:
+with TokenlessLLM(model="gpt-oss:20b") as llm:
     model = llm.as_strands_model()
 
     agent = Agent(
