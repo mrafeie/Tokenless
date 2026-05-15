@@ -21,3 +21,17 @@ def test_agents_model_requires_running_endpoint():
 
     with pytest.raises(RuntimeError, match="Call .start"):
         llm.as_agents_model()
+
+
+def test_strands_model_requires_running_endpoint():
+    llm = TokenlessLLM(model=GPT_OSS_MODEL_ID)
+
+    with pytest.raises(RuntimeError, match="Call .start"):
+        llm.as_strands_model()
+
+
+def test_langchain_model_requires_running_endpoint():
+    llm = TokenlessLLM(model=GPT_OSS_MODEL_ID)
+
+    with pytest.raises(RuntimeError, match="Call .start"):
+        llm.as_langchain_llm()

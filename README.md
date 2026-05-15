@@ -125,30 +125,77 @@ exposes an OpenAI-compatible Chat Completions endpoint.
 
 ### Strands Agents
 
+```bash
+pip install -e ".[strands]"
+```
+
 ```python
 from tokenless import TokenlessLLM
-from strands import Agent
+from strands import Agent, tool
+
+@tool
+def word_count(text: str) -> int:
+    """Count the number of words in a piece of text."""
+    return len(text.split())
 
 with TokenlessLLM(model="gpt-oss:20b") as llm:
-    agent = Agent(model=llm.as_strands_model())
-    agent("Summarize how event loops work.")
+    agent = Agent(
+        model=llm.as_strands_model(params={"temperature": 0.2}),
+        tools=[word_count],
+        system_prompt="Use tools when helpful. Keep answers concise.",
+    )
+    result = agent("Explain asyncio, then count the words in your explanation.")
+    print(result)
 ```
 
 ### LangChain
 
+```bash
+pip install -e ".[langchain]"
+```
+
 ```python
 from tokenless import TokenlessLLM
 
 with TokenlessLLM(model="gpt-oss:20b") as llm:
-    lc_llm = llm.as_langchain_llm()
-    print(lc_llm.invoke("What is RAG?"))
+    chat = llm.as_langchain_llm(temperature=0.2, max_tokens=512)
+    response = chat.invoke("Explain asyncio in two sentences.")
+    print(response.content)
 ```
 
-Install optional integrations with:
+For a LangGraph ReAct agent:
+
+```python
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+from tokenless import TokenlessLLM
+
+@tool
+def word_count(text: str) -> int:
+    """Count the number of words in a piece of text."""
+    return len(text.split())
+
+with TokenlessLLM(model="gpt-oss:20b") as llm:
+    chat = llm.as_langchain_llm(temperature=0.2, max_tokens=512)
+    agent = create_react_agent(chat, tools=[word_count])
+    result = agent.invoke(
+        {
+            "messages": [
+                (
+                    "user",
+                    "Explain asyncio in two sentences, then count the words "
+                    "in your explanation.",
+                )
+            ]
+        }
+    )
+    print(result["messages"][-1].content)
+```
+
+Install all optional integrations with:
 
 ```bash
-pip install "tokenless[strands]"
-pip install "tokenless[langchain]"
+pip install -e ".[all]"
 ```
 
 ## How It Works

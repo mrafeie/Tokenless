@@ -1,13 +1,13 @@
 """
-Example: Strands agent running on Kaggle's free GPUs.
+Example: Strands Agents running on Tokenless.
 
 Install:
-    pip install tokenless[strands] strands-agents-tools
+    pip install -e ".[strands]"
 """
 
-from tokenless import TokenlessLLM
 from strands import Agent, tool
-from strands_tools import http_request
+
+from tokenless import TokenlessLLM
 
 
 @tool
@@ -17,24 +17,27 @@ def word_count(text: str) -> int:
 
 
 @tool
-def summarise(text: str) -> str:
-    """Return the first 280 characters of text as a short summary."""
-    return text[:280] + ("..." if len(text) > 280 else "")
+def first_chars(text: str, limit: int = 120) -> str:
+    """Return the first characters of a piece of text."""
+    return text[:limit]
 
 
 with TokenlessLLM(model="gpt-oss:20b") as llm:
-    model = llm.as_strands_model()
-
     agent = Agent(
-        model=model,
-        tools=[word_count, summarise, http_request],
+        model=llm.as_strands_model(
+            params={
+                "temperature": 0.2,
+                "max_tokens": 512,
+            }
+        ),
+        tools=[word_count, first_chars],
         system_prompt=(
-            "You are a helpful research assistant. "
-            "Use the tools available to answer questions accurately."
+            "You are a concise assistant. Use tools when they help answer "
+            "the user's request."
         ),
     )
 
     result = agent(
-        "Fetch https://example.com, summarise the content, and count how many words it has."
+        "Explain asyncio in two sentences, then use the word_count tool on your explanation."
     )
     print(result)

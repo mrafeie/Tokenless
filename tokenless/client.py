@@ -384,17 +384,19 @@ class TokenlessLLM:
     # Framework integrations
     # ------------------------------------------------------------------
 
-    def as_strands_model(self):
+    def as_strands_model(self, **kwargs):
         """Return a Strands-compatible model provider backed by this endpoint."""
         self._assert_inference()
         from tokenless.providers.strands import TokenlessStrandsModel
-        return TokenlessStrandsModel(base_url=self._base_url, model=self.model)
 
-    def as_langchain_llm(self):
+        return TokenlessStrandsModel(base_url=self._base_url, model=self.model, **kwargs)
+
+    def as_langchain_llm(self, **kwargs):
         """Return a LangChain ChatOpenAI instance backed by this endpoint."""
         self._assert_inference()
         from tokenless.providers.langchain import TokenlessLangChainLLM
-        return TokenlessLangChainLLM(base_url=self._base_url, model=self.model)
+
+        return TokenlessLangChainLLM(base_url=self._base_url, model=self.model, **kwargs)
 
     def as_agents_model(self, **kwargs):
         """Return an OpenAI Agents SDK model backed by this endpoint."""

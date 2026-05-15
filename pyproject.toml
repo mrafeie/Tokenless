@@ -40,7 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 agents = ["openai-agents>=0.13"]
 strands = ["strands-agents>=0.1"]
-langchain = ["langchain-openai>=0.1", "langchain>=0.2"]
+langchain = ["langchain-openai>=0.1", "langchain>=0.2", "langgraph>=0.2"]
 all = ["tokenless[agents,strands,langchain]"]
 dev = ["build", "pytest", "pytest-asyncio", "ruff", "mypy", "setuptools>=68", "twine"]
 

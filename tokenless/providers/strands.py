@@ -1,12 +1,12 @@
 """
-Strands Agents model provider backed by a Kaggle free-GPU endpoint.
+Strands Agents model provider backed by a Tokenless endpoint.
 
 Usage
 -----
->>> with TokenlessLLM(model="llama3.1-8b") as llm:
+>>> with TokenlessLLM(model="gpt-oss:20b") as llm:
 ...     model = llm.as_strands_model()
 ...     agent = Agent(model=model, tools=[my_tool])
-...     agent("Summarise the latest AI papers")
+...     agent("Summarize the latest AI papers")
 """
 
 from __future__ import annotations
@@ -15,38 +15,51 @@ from typing import Any
 
 try:
     from strands.models.openai import OpenAIModel
+
     _STRANDS_AVAILABLE = True
 except ImportError:
     _STRANDS_AVAILABLE = False
-    OpenAIModel = object  # fallback so the class definition doesn't break at import
+    OpenAIModel = object
 
 
 class TokenlessStrandsModel(OpenAIModel):
     """
-    A Strands-compatible model provider that routes requests to a
-    Kaggle notebook running Ollama or vLLM.
+    Strands-compatible OpenAI model provider pointed at Tokenless.
 
-    Inherits from OpenAIModel because Kaggle exposes an OpenAI-compatible API.
+    Tokenless exposes Ollama through an OpenAI-compatible Chat Completions
+    endpoint, so Strands can use its built-in OpenAI provider.
     """
 
-    def __init__(self, base_url: str, model: str, **kwargs: Any):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        *,
+        api_key: str = "kaggle-free",
+        params: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ):
         if not _STRANDS_AVAILABLE:
             raise ImportError(
                 "strands-agents is not installed. "
                 "Run: pip install strands-agents  (or pip install tokenless[strands])"
             )
+        base_url = base_url.rstrip("/")
         super().__init__(
             model_id=model,
-            api_key="kaggle-free",        # dummy — no auth needed
-            base_url=f"{base_url}/v1",
+            client_args={
+                "api_key": api_key,
+                "base_url": f"{base_url}/v1",
+            },
+            params=params or {},
             **kwargs,
         )
-        self._kaggle_base_url = base_url
-        self._model_name = model
+        self._tokenless_base_url = base_url
+        self._tokenless_model = model
 
     def __repr__(self) -> str:
         return (
-            f"TokenlessStrandsModel("
-            f"model={self._model_name!r}, "
-            f"url={self._kaggle_base_url!r})"
+            "TokenlessStrandsModel("
+            f"model={self._tokenless_model!r}, "
+            f"url={self._tokenless_base_url!r})"
         )
