@@ -14,11 +14,9 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Callable, ClassVar, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 import requests
-from kaggle.api.kaggle_api_extended import KaggleApi
-from kagglesdk.kernels.types.kernels_enums import KernelWorkerStatus
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +42,18 @@ _GPT_OSS_SERVER_TEMPLATE = (
 
 def _smoke_script_template() -> Path:
     return Path(__file__).resolve().parent / "kernels" / "smoke" / _SMOKE_SCRIPT_NAME
+
+
+def _kaggle_api_cls():
+    from kaggle.api.kaggle_api_extended import KaggleApi
+
+    return KaggleApi
+
+
+def _kernel_worker_status_cls():
+    from kagglesdk.kernels.types.kernels_enums import KernelWorkerStatus
+
+    return KernelWorkerStatus
 
 
 def run_gpt_oss_20b_prompt_on_kaggle(
@@ -222,6 +232,7 @@ class KaggleNotebookManager:
 
         kernel_id = f"{owner}/{kernel_slug}"
         with tempfile.TemporaryDirectory(prefix="tokenless-gpt-oss-") as tmp:
+            KaggleApi = _kaggle_api_cls()
             folder = Path(tmp)
             (folder / _GPT_OSS_SCRIPT_NAME).write_text(body, encoding="utf-8")
             meta = {
@@ -299,6 +310,8 @@ class KaggleNotebookManager:
         listener.start()
 
         with tempfile.TemporaryDirectory(prefix="tokenless-gpt-oss-server-") as tmp:
+            KaggleApi = _kaggle_api_cls()
+            KernelWorkerStatus = _kernel_worker_status_cls()
             folder = Path(tmp)
             body = _GPT_OSS_SERVER_TEMPLATE.read_text(encoding="utf-8")
             body = body.replace("__TOKENLESS_NTFY_TOPIC__", rendezvous_topic)
@@ -417,7 +430,8 @@ class KaggleNotebookManager:
         except requests.RequestException as e:
             logger.warning("Public URL rendezvous listener failed: %s", e)
 
-    def _configure_api(self) -> KaggleApi:
+    def _configure_api(self) -> Any:
+        KaggleApi = _kaggle_api_cls()
         api = KaggleApi()
         cfg: dict[str, str] = {}
         cfg = api.read_config_environment(cfg)
@@ -437,6 +451,7 @@ class KaggleNotebookManager:
         return api
 
     def _resolve_credentials(self) -> Optional[tuple[str, str]]:
+        KaggleApi = _kaggle_api_cls()
         api = KaggleApi()
         cfg: dict[str, str] = {}
         cfg = api.read_config_environment(cfg)
@@ -453,7 +468,7 @@ class KaggleNotebookManager:
 
     def _push_poll_fetch_output(
         self,
-        api: KaggleApi,
+        api: Any,
         kernel_id: str,
         folder: Path,
         *,
@@ -465,6 +480,7 @@ class KaggleNotebookManager:
         kernel_session_timeout: int,
         accelerator: Optional[str],
     ) -> str:
+        KernelWorkerStatus = _kernel_worker_status_cls()
         push = api.kernels_push(
             str(folder),
             timeout=str(kernel_session_timeout),
@@ -529,6 +545,7 @@ class KaggleNotebookManager:
 
         kernel_id = f"{owner}/{self.kernel_slug}"
         with tempfile.TemporaryDirectory(prefix="tokenless-kernel-") as tmp:
+            KaggleApi = _kaggle_api_cls()
             folder = Path(tmp)
             shutil.copy2(template, folder / _SMOKE_SCRIPT_NAME)
             meta = {
