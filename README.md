@@ -58,11 +58,10 @@ installs Ollama, downloads the model, and opens the public endpoint. Pass
 | Model | Backend | Notes |
 |-------|---------|-------|
 | gpt-oss:20b | Ollama persistent kernel | Downloads once per `start()` |
-| llama3.1-8b | Endpoint mode / smoke path | Experimental |
-| llama3.1-70b | Endpoint mode / smoke path | Experimental |
-| mistral-7b | Endpoint mode / smoke path | Experimental |
-| gemma-2-9b | Endpoint mode / smoke path | Experimental |
-| qwen2.5-7b | Endpoint mode / smoke path | Experimental |
+| llama3.1-8b | Endpoint mode / smoke path | Coming Soon |
+| mistral-7b | Endpoint mode / smoke path | Coming Soon |
+| gemma-2-9b | Endpoint mode / smoke path | Coming Soon |
+| qwen2.5-7b | Endpoint mode / smoke path | Coming Soon |
 
 ## Agent Integrations
 
@@ -220,6 +219,15 @@ pip install -e ".[dev]"
 python -m pytest
 python -m ruff check .
 python -m py_compile tokenless/client.py tokenless/notebook.py
+```
+
+CI runs offline tests only and does not require Kaggle credentials. To run the
+live Kaggle smoke test locally:
+
+```bash
+export KAGGLE_USERNAME="your_username"
+export KAGGLE_KEY="your_api_key"
+python -m pytest --run-live-kaggle -m live_kaggle
 ```
 
 ## License

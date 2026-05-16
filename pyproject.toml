@@ -59,3 +59,6 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live_kaggle: requires real Kaggle credentials and may start a GPU kernel",
+]
