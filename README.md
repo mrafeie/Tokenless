@@ -2,7 +2,7 @@
 
 Run LLMs on Kaggle's free GPU notebooks with an OpenAI-compatible local client.
 
-[![CI](https://github.com/mrafeie/tokenless/actions/workflows/ci.yml/badge.svg)](https://github.com/mrafeie/tokenless/actions) 
+[![CI](https://github.com/mrafeie/tokenless/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mrafeie/tokenless/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
@@ -17,27 +17,13 @@ For `gpt-oss:20b`, the model is downloaded once during `llm.start()`. Repeated
 
 ## Quick Start
 
-Install from source:
+Install from PyPI:
 
 ```bash
-pip install -e .
+pip install tokenless
 ```
 
-Set your Kaggle credentials:
-
-```bash
-export KAGGLE_USERNAME="your_username"
-export KAGGLE_KEY="your_api_key"
-```
-
-On PowerShell:
-
-```powershell
-$env:KAGGLE_USERNAME = "your_username"
-$env:KAGGLE_KEY = "your_api_key"
-```
-
-Run your first prompt:
+Set your Kaggle credentials, then run your first prompt:
 
 ```python
 from tokenless import TokenlessLLM
@@ -52,6 +38,38 @@ llm.stop()
 `llm.start()` shows a terminal progress bar while Kaggle starts the GPU kernel,
 installs Ollama, downloads the model, and opens the public endpoint. Pass
 `show_progress=False` to disable it.
+
+## Kaggle Credentials
+
+Tokenless needs your Kaggle username and API key to create private Kaggle
+kernels. Create an API token from your Kaggle account settings, then use one of
+the methods below.
+
+### Python
+
+Pass credentials directly when creating the client:
+
+```python
+from tokenless import TokenlessLLM
+
+llm = TokenlessLLM(
+    model="gpt-oss:20b",
+    kaggle_username="your_username",
+    kaggle_key="your_api_key",
+)
+```
+
+Or set environment variables inside Python before calling `start()`:
+
+```python
+import os
+from tokenless import TokenlessLLM
+
+os.environ["KAGGLE_USERNAME"] = "your_username"
+os.environ["KAGGLE_KEY"] = "your_api_key"
+
+llm = TokenlessLLM(model="gpt-oss:20b")
+```
 
 ## Supported Models
 
@@ -68,7 +86,7 @@ installs Ollama, downloads the model, and opens the public endpoint. Pass
 ### OpenAI Agents SDK
 
 ```bash
-pip install -e ".[agents]"
+pip install "tokenless[agents]"
 ```
 
 ```python
@@ -125,7 +143,7 @@ exposes an OpenAI-compatible Chat Completions endpoint.
 ### Strands Agents
 
 ```bash
-pip install -e ".[strands]"
+pip install "tokenless[strands]"
 ```
 
 ```python
@@ -150,7 +168,7 @@ with TokenlessLLM(model="gpt-oss:20b") as llm:
 ### LangChain
 
 ```bash
-pip install -e ".[langchain]"
+pip install "tokenless[langchain]"
 ```
 
 ```python
@@ -194,7 +212,7 @@ with TokenlessLLM(model="gpt-oss:20b") as llm:
 Install all optional integrations with:
 
 ```bash
-pip install -e ".[all]"
+pip install "tokenless[all]"
 ```
 
 ## How It Works
