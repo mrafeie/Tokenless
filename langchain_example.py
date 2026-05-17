@@ -15,3 +15,12 @@ with TokenlessLLM(model="gpt-oss:20b") as llm:
     )
     response = chat.invoke("Explain asyncio in two sentences.")
     print(response.content)
+
+
+# PDF QA keeps the converted Markdown on Kaggle and reuses it for each question:
+#
+# llm = TokenlessLLM(model="gpt-oss:20b")
+# llm.start(file_path=r"C:\path\to\paper.pdf", pdf_context=True)
+# chat = llm.as_langchain_llm(temperature=0.2, max_tokens=512)
+# print(chat.invoke("What are the main findings?").content)
+# llm.stop()

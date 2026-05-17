@@ -40,6 +40,10 @@ _GPT_OSS_SERVER_TEMPLATE = (
 )
 
 
+def _empty_b64() -> str:
+    return base64.b64encode(b"").decode("ascii")
+
+
 def _smoke_script_template() -> Path:
     return Path(__file__).resolve().parent / "kernels" / "smoke" / _SMOKE_SCRIPT_NAME
 
@@ -113,10 +117,14 @@ class KaggleNotebookManager:
         self.public_url: Optional[str] = None
         self.smoke_test_message: Optional[str] = None
         self.kernel_ref: Optional[str] = None
+        self._temporary_dataset_owner: Optional[str] = None
+        self._temporary_dataset_slug: Optional[str] = None
 
     def launch(
         self,
         *,
+        file_path: Optional[str] = None,
+        pdf_context: bool = False,
         kaggle_prompt: Optional[str] = None,
         kaggle_system_prompt: Optional[str] = None,
         smoke_status_timeout: int = 1800,
@@ -130,16 +138,32 @@ class KaggleNotebookManager:
     ) -> None:
         """
         Set ``public_url`` from env, run a smoke script kernel, or prepare the
-        ``gpt-oss:20b`` batch runner. Passing ``kaggle_prompt`` keeps the legacy
-        one-shot GPT-OSS behavior and stores the reply in ``smoke_test_message``.
+        ``gpt-oss:20b`` batch runner. Passing ``kaggle_prompt`` or ``file_path``
+        keeps the one-shot GPT-OSS behavior unless ``pdf_context`` is true, in
+        which case the GPT-OSS server keeps the converted PDF Markdown on Kaggle.
         """
         self.__class__._current = self
         self.smoke_test_message = None
         self.kernel_ref = None
+        self._temporary_dataset_owner = None
+        self._temporary_dataset_slug = None
+        input_path = self._validate_pdf_file_path(file_path) if file_path else None
         if progress_callback:
             progress_callback("Checking endpoint configuration")
 
+        if input_path and self.model != GPT_OSS_MODEL_ID:
+            raise ValueError(
+                "file_path PDF conversion is currently supported only for gpt-oss:20b."
+            )
+        if pdf_context and input_path is None:
+            raise ValueError("pdf_context=True requires file_path.")
+
         env_url = os.environ.get("TOKENLESS_PUBLIC_URL")
+        if input_path and env_url:
+            logger.info(
+                "Ignoring TOKENLESS_PUBLIC_URL because file_path requires a Kaggle batch run."
+            )
+            env_url = None
         if env_url:
             if progress_callback:
                 progress_callback("Using TOKENLESS_PUBLIC_URL")
@@ -161,9 +185,10 @@ class KaggleNotebookManager:
         self.public_url = None
 
         if self.model == GPT_OSS_MODEL_ID:
-            if kaggle_prompt is None:
+            if (kaggle_prompt is None and input_path is None) or pdf_context:
                 self.public_url = self._start_ollama_gpt_oss_20b_server(
                     owner,
+                    file_path=input_path,
                     kernel_slug=DEFAULT_GPT_OSS_SERVER_KERNEL_SLUG,
                     status_timeout=gpt_oss_status_timeout,
                     poll_interval=gpt_oss_poll_interval,
@@ -182,7 +207,8 @@ class KaggleNotebookManager:
                 else "You are a helpful AI assistant."
             )
             self.smoke_test_message = self.run_ollama_gpt_oss_20b_prompt(
-                kaggle_prompt,
+                kaggle_prompt or "",
+                file_path=input_path,
                 system_prompt=sys_p,
                 kernel_slug=DEFAULT_GPT_OSS_KERNEL_SLUG,
                 status_timeout=gpt_oss_status_timeout,
@@ -206,6 +232,7 @@ class KaggleNotebookManager:
         self,
         prompt: str,
         *,
+        file_path: Optional[Path | str] = None,
         system_prompt: str = "You are a helpful AI assistant.",
         kernel_slug: str = DEFAULT_GPT_OSS_KERNEL_SLUG,
         status_timeout: int = 36_000,
@@ -214,6 +241,7 @@ class KaggleNotebookManager:
         accelerator: Optional[str] = "NvidiaTeslaT4",
     ) -> str:
         """Batch one-shot: script kernel like ``gpt-oss-20B.ipynb``; returns assistant text."""
+        input_path = self._validate_pdf_file_path(file_path) if file_path else None
         creds = self._resolve_credentials()
         if not creds:
             raise RuntimeError(
@@ -229,11 +257,33 @@ class KaggleNotebookManager:
         body = _GPT_OSS_TEMPLATE.read_text(encoding="utf-8")
         body = body.replace("__TOKENLESS_PROMPT_B64__", pb)
         body = body.replace("__TOKENLESS_SYSTEM_B64__", sb)
-
         kernel_id = f"{owner}/{kernel_slug}"
+        dataset_ref: Optional[str] = None
+        dataset_slug: Optional[str] = None
+        input_filename = ""
         with tempfile.TemporaryDirectory(prefix="tokenless-gpt-oss-") as tmp:
             KaggleApi = _kaggle_api_cls()
             folder = Path(tmp)
+            api = self._configure_api()
+            if input_path:
+                dataset_ref, dataset_slug, input_filename = self._upload_private_input_dataset(
+                    api,
+                    owner,
+                    input_path,
+                )
+                body = body.replace(
+                    "__TOKENLESS_INPUT_DATASET_SLUG_B64__",
+                    base64.b64encode(dataset_slug.encode("utf-8")).decode("ascii"),
+                )
+            else:
+                body = body.replace("__TOKENLESS_INPUT_DATASET_SLUG_B64__", _empty_b64())
+            body = body.replace(
+                "__TOKENLESS_INPUT_FILENAME_B64__",
+                base64.b64encode(input_filename.encode("utf-8")).decode("ascii")
+                if input_filename
+                else _empty_b64(),
+            )
+
             (folder / _GPT_OSS_SCRIPT_NAME).write_text(body, encoding="utf-8")
             meta = {
                 "id": kernel_id,
@@ -244,7 +294,7 @@ class KaggleNotebookManager:
                 "is_private": True,
                 "enable_gpu": True,
                 "enable_internet": True,
-                "dataset_sources": [],
+                "dataset_sources": [dataset_ref] if dataset_ref else [],
                 "competition_sources": [],
                 "kernel_sources": [],
                 "model_sources": [],
@@ -254,22 +304,191 @@ class KaggleNotebookManager:
                 encoding="utf-8",
             )
 
-            api = self._configure_api()
             logger.info("Pushing GPT-OSS 20B script kernel %s ...", kernel_id)
-            return self._push_poll_fetch_output(
-                api,
-                kernel_id,
-                folder,
-                output_filename=GPT_OSS_RESPONSE_FILENAME,
-                error_filename=GPT_OSS_ERROR_FILENAME,
-                output_file_pattern=r"^tokenless_model_(response|error)\.txt$",
-                status_timeout=status_timeout,
-                poll_interval=poll_interval,
-                kernel_session_timeout=kernel_session_timeout,
-                accelerator=accelerator,
+            try:
+                return self._push_poll_fetch_output(
+                    api,
+                    kernel_id,
+                    folder,
+                    output_filename=GPT_OSS_RESPONSE_FILENAME,
+                    error_filename=GPT_OSS_ERROR_FILENAME,
+                    output_file_pattern=r"^tokenless_model_(response|error)\.txt$",
+                    status_timeout=status_timeout,
+                    poll_interval=poll_interval,
+                    kernel_session_timeout=kernel_session_timeout,
+                    accelerator=accelerator,
+                )
+            finally:
+                if dataset_slug:
+                    try:
+                        api.dataset_delete(owner, dataset_slug, no_confirm=True)
+                    except Exception as e:  # noqa: BLE001 - best-effort cleanup
+                        logger.warning(
+                            "Failed to delete temporary Kaggle dataset %s/%s: %s",
+                            owner,
+                            dataset_slug,
+                            e,
+                        )
+
+    @staticmethod
+    def _validate_pdf_file_path(file_path: Path | str) -> Path:
+        path = Path(file_path).expanduser().resolve()
+        if not path.exists():
+            raise FileNotFoundError(f"Input file does not exist: {path}")
+        if not path.is_file():
+            raise ValueError(f"Input path must be a file: {path}")
+        if path.suffix.lower() != ".pdf":
+            raise ValueError("Only PDF files are supported by file_path right now.")
+        return path
+
+    def _upload_private_input_dataset(
+        self,
+        api: Any,
+        owner: str,
+        file_path: Path,
+    ) -> tuple[str, str, str]:
+        dataset_slug = f"tokenless-pdf-{uuid.uuid4().hex[:12]}"
+        dataset_ref = f"{owner}/{dataset_slug}"
+        with tempfile.TemporaryDirectory(prefix="tokenless-input-dataset-") as tmp:
+            folder = Path(tmp)
+            safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", file_path.name).strip("._")
+            if not safe_name:
+                safe_name = "input.pdf"
+            if not safe_name.lower().endswith(".pdf"):
+                safe_name = f"{safe_name}.pdf"
+            shutil.copy2(file_path, folder / safe_name)
+            meta = {
+                "id": dataset_ref,
+                "title": f"Tokenless PDF {dataset_slug[-12:]}",
+                "licenses": [{"name": "CC0-1.0"}],
+            }
+            (folder / api.DATASET_METADATA_FILE).write_text(
+                json.dumps(meta, indent=2),
+                encoding="utf-8",
             )
+            logger.info(
+                "Uploading PDF input as temporary private Kaggle dataset %s ...",
+                dataset_ref,
+            )
+            created = api.dataset_create_new(
+                str(folder),
+                public=False,
+                quiet=True,
+                convert_to_csv=False,
+                dir_mode="skip",
+            )
+            if created.error:
+                raise RuntimeError(f"Kaggle dataset upload failed: {created.error}")
+        dataset_ref = self._normalize_dataset_ref(created.ref or dataset_ref)
+        _dataset_source_ref, mounted_name = self._wait_for_dataset_available(
+            api,
+            dataset_ref,
+            expected_filename=safe_name,
+        )
+        return dataset_ref, dataset_slug, mounted_name
+
+    @staticmethod
+    def _normalize_dataset_ref(ref: str) -> str:
+        ref = ref.strip()
+        ref = ref.removeprefix("https://www.kaggle.com/datasets/")
+        ref = ref.removeprefix("http://www.kaggle.com/datasets/")
+        ref = ref.removeprefix("https://kaggle.com/datasets/")
+        ref = ref.removeprefix("http://kaggle.com/datasets/")
+        ref = ref.removeprefix("/datasets/")
+        ref = ref.strip("/")
+        parts = ref.split("/")
+        if len(parts) >= 2:
+            return f"{parts[0]}/{parts[1]}"
+        return ref
+
+    @staticmethod
+    def _wait_for_dataset_available(
+        api: Any,
+        dataset_ref: str,
+        *,
+        expected_filename: str,
+        timeout: int = 300,
+        poll_interval: float = 5.0,
+    ) -> tuple[str, str]:
+        def list_file_names(ref: str) -> list[str]:
+            names: list[str] = []
+            page_token = None
+            while True:
+                response = api.dataset_list_files(
+                    ref,
+                    page_token=page_token,
+                    page_size=100,
+                )
+                files = getattr(response, "dataset_files", None)
+                if files is None:
+                    files = getattr(response, "files", [])
+                names.extend(str(getattr(file, "name", "")) for file in files)
+                page_token = getattr(response, "next_page_token", None)
+                if not page_token:
+                    break
+            return [name for name in names if name]
+
+        deadline = time.time() + timeout
+        last_status = "unknown"
+        last_error = ""
+        last_files: list[str] = []
+        while time.time() < deadline:
+            dataset_source_ref = dataset_ref
+            try:
+                raw = api.dataset_status(
+                    dataset_ref,
+                    format="json(status,current_version_number)",
+                )
+                status = json.loads(raw)
+            except Exception as e:  # noqa: BLE001 - dataset may not be visible yet
+                last_status = repr(e)
+                last_error = repr(e)
+                time.sleep(poll_interval)
+                continue
+
+            last_status = str(status.get("status") or "unknown")
+            version = status.get("current_version_number")
+            if version is not None:
+                dataset_source_ref = f"{dataset_ref}/{version}"
+            if last_status in {"error", "failed", "failure"}:
+                raise RuntimeError(
+                    f"Kaggle dataset {dataset_ref} reported status {last_status}."
+                )
+            try:
+                last_files = list_file_names(dataset_source_ref)
+            except Exception as e:  # noqa: BLE001 - files may lag behind status
+                last_error = repr(e)
+                time.sleep(poll_interval)
+                continue
+            if expected_filename in last_files:
+                return dataset_source_ref, expected_filename
+            pdf_files = [name for name in last_files if name.lower().endswith(".pdf")]
+            if len(pdf_files) == 1:
+                return dataset_source_ref, pdf_files[0]
+            time.sleep(poll_interval)
+
+        raise TimeoutError(
+            f"Timed out waiting for Kaggle dataset {dataset_ref} to expose "
+            f"{expected_filename!r}. Last status: {last_status}. "
+            f"Last files: {last_files}. Last error: {last_error}"
+        )
 
     def stop(self) -> None:
+        if self._temporary_dataset_owner and self._temporary_dataset_slug:
+            try:
+                self._configure_api().dataset_delete(
+                    self._temporary_dataset_owner,
+                    self._temporary_dataset_slug,
+                    no_confirm=True,
+                )
+                logger.info("Deleted Kaggle dataset %s.", self._temporary_dataset_slug)
+            except Exception as e:  # noqa: BLE001 - best-effort cleanup
+                logger.warning(
+                    "Failed to delete Kaggle dataset %s/%s: %s",
+                    self._temporary_dataset_owner,
+                    self._temporary_dataset_slug,
+                    e,
+                )
         if self.kernel_ref and self.model == GPT_OSS_MODEL_ID and self.public_url:
             try:
                 self._configure_api().kernels_delete(self.kernel_ref, no_confirm=True)
@@ -281,11 +500,14 @@ class KaggleNotebookManager:
         self.public_url = None
         self.smoke_test_message = None
         self.kernel_ref = None
+        self._temporary_dataset_owner = None
+        self._temporary_dataset_slug = None
 
     def _start_ollama_gpt_oss_20b_server(
         self,
         owner: str,
         *,
+        file_path: Optional[Path] = None,
         kernel_slug: str,
         status_timeout: int,
         poll_interval: float,
@@ -315,6 +537,30 @@ class KaggleNotebookManager:
             folder = Path(tmp)
             body = _GPT_OSS_SERVER_TEMPLATE.read_text(encoding="utf-8")
             body = body.replace("__TOKENLESS_NTFY_TOPIC__", rendezvous_topic)
+            dataset_ref: Optional[str] = None
+            dataset_slug: Optional[str] = None
+            input_filename = ""
+            api = self._configure_api()
+            if file_path:
+                dataset_ref, dataset_slug, input_filename = self._upload_private_input_dataset(
+                    api,
+                    owner,
+                    file_path,
+                )
+                self._temporary_dataset_owner = owner
+                self._temporary_dataset_slug = dataset_slug
+                body = body.replace(
+                    "__TOKENLESS_INPUT_DATASET_SLUG_B64__",
+                    base64.b64encode(dataset_slug.encode("utf-8")).decode("ascii"),
+                )
+            else:
+                body = body.replace("__TOKENLESS_INPUT_DATASET_SLUG_B64__", _empty_b64())
+            body = body.replace(
+                "__TOKENLESS_INPUT_FILENAME_B64__",
+                base64.b64encode(input_filename.encode("utf-8")).decode("ascii")
+                if input_filename
+                else _empty_b64(),
+            )
             (folder / _GPT_OSS_SERVER_SCRIPT_NAME).write_text(body, encoding="utf-8")
             meta = {
                 "id": kernel_id,
@@ -325,7 +571,7 @@ class KaggleNotebookManager:
                 "is_private": True,
                 "enable_gpu": True,
                 "enable_internet": True,
-                "dataset_sources": [],
+                "dataset_sources": [dataset_ref] if dataset_ref else [],
                 "competition_sources": [],
                 "kernel_sources": [],
                 "model_sources": [],
@@ -335,7 +581,6 @@ class KaggleNotebookManager:
                 encoding="utf-8",
             )
 
-            api = self._configure_api()
             logger.info("Pushing GPT-OSS 20B server kernel %s ...", kernel_id)
             if progress_callback:
                 progress_callback("Uploading Kaggle server kernel")
@@ -480,6 +725,29 @@ class KaggleNotebookManager:
         kernel_session_timeout: int,
         accelerator: Optional[str],
     ) -> str:
+        def fetch_kernel_output() -> tuple[dict[str, Path], str]:
+            out_dir = folder / "output"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            files, token = api.kernels_output(
+                kernel_id,
+                str(out_dir),
+                file_pattern=output_file_pattern,
+                force=True,
+                quiet=True,
+            )
+            return {Path(p).name: Path(p) for p in files}, token
+
+        def raise_from_kernel_output(prefix: str) -> None:
+            try:
+                by_name, _token = fetch_kernel_output()
+            except Exception as e:  # noqa: BLE001 - include original kernel status too
+                raise RuntimeError(f"{prefix}; failed to fetch kernel output: {e}") from e
+            if error_filename and error_filename in by_name:
+                err_text = by_name[error_filename].read_text(encoding="utf-8").strip()
+                raise RuntimeError(f"{prefix}; kernel reported failure: {err_text}")
+            output_names = ", ".join(sorted(by_name)) or "none"
+            raise RuntimeError(f"{prefix}; available output files: {output_names}")
+
         KernelWorkerStatus = _kernel_worker_status_cls()
         push = api.kernels_push(
             str(folder),
@@ -497,7 +765,7 @@ class KaggleNotebookManager:
             st = status.status
             if st == KernelWorkerStatus.ERROR:
                 msg = status.failure_message or "unknown error"
-                raise RuntimeError(f"Kaggle kernel run failed: {msg}")
+                raise_from_kernel_output(f"Kaggle kernel run failed: {msg}")
             if st == KernelWorkerStatus.CANCEL_REQUESTED:
                 raise RuntimeError("Kaggle kernel run was cancelled (cancel requested).")
             if st == KernelWorkerStatus.CANCEL_ACKNOWLEDGED:
@@ -510,23 +778,20 @@ class KaggleNotebookManager:
                 f"Timed out after {status_timeout}s waiting for kernel {kernel_id} to complete."
             )
 
-        out_dir = folder / "output"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        files, _token = api.kernels_output(
-            kernel_id,
-            str(out_dir),
-            file_pattern=output_file_pattern,
-            force=True,
-            quiet=True,
-        )
-        by_name = {Path(p).name: Path(p) for p in files}
+        by_name, _token = fetch_kernel_output()
         if output_filename in by_name:
             return by_name[output_filename].read_text(encoding="utf-8").strip()
         if error_filename and error_filename in by_name:
             err_text = by_name[error_filename].read_text(encoding="utf-8").strip()
             raise RuntimeError(f"Kernel reported failure (see {error_filename}): {err_text}")
+        logs = api.kernels_logs(kernel_id) or ""
+        if not isinstance(logs, str):
+            logs = json.dumps(logs)
+        log_tail = "\n".join(logs.splitlines()[-80:])
+        output_names = ", ".join(sorted(by_name)) or "none"
         raise RuntimeError(
-            f"Expected output file {output_filename!r} not found in kernel output for {kernel_id}."
+            f"Expected output file {output_filename!r} not found in kernel output for "
+            f"{kernel_id}. Available output files: {output_names}. Recent Kaggle logs:\n{log_tail}"
         )
 
     def _run_smoke_script_kernel(

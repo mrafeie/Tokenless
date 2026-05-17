@@ -39,6 +39,29 @@ llm.stop()
 installs Ollama, downloads the model, and opens the public endpoint. Pass
 `show_progress=False` to disable it.
 
+### PDF Input
+
+For `gpt-oss:20b`, `start()` can upload a PDF to Kaggle as a temporary private
+dataset and convert it to Markdown inside the Kaggle kernel. This supports both
+text PDFs and scanned/image PDFs.
+
+```python
+from tokenless import TokenlessLLM
+
+llm = TokenlessLLM(model="gpt-oss:20b")
+markdown = llm.start(file_path="paper.pdf")
+print(markdown)
+```
+
+Pass `kaggle_prompt` as well to ask the model about the converted Markdown:
+
+```python
+answer = llm.start(
+    file_path="paper.pdf",
+    kaggle_prompt="Summarize this PDF in five bullets.",
+)
+```
+
 ## Kaggle Credentials
 
 Tokenless needs your Kaggle username and API key to create private Kaggle
@@ -178,6 +201,24 @@ with TokenlessLLM(model="gpt-oss:20b") as llm:
     chat = llm.as_langchain_llm(temperature=0.2, max_tokens=512)
     response = chat.invoke("Explain asyncio in two sentences.")
     print(response.content)
+```
+
+For PDF question answering, start the Kaggle endpoint with server-side PDF
+context. The PDF is uploaded to Kaggle, converted to Markdown there, and kept on
+Kaggle. Each LangChain question sends only the question; the Kaggle proxy
+selects relevant Markdown chunks before calling the model.
+
+```python
+from tokenless import TokenlessLLM
+
+llm = TokenlessLLM(model="gpt-oss:20b")
+llm.start(file_path=r"C:\path\to\paper.pdf", pdf_context=True)
+
+chat = llm.as_langchain_llm(temperature=0.2, max_tokens=512)
+response = chat.invoke("What are the main findings in this PDF?")
+print(response.content)
+
+llm.stop()
 ```
 
 For a LangGraph ReAct agent:

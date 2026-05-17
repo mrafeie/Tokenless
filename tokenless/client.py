@@ -160,6 +160,8 @@ class TokenlessLLM:
         timeout: int = 300,
         *,
         public_url: Optional[str] = None,
+        file_path: Optional[str] = None,
+        pdf_context: bool = False,
         kaggle_prompt: Optional[str] = None,
         kaggle_system_prompt: Optional[str] = None,
         smoke_status_timeout: int = 1800,
@@ -177,6 +179,9 @@ class TokenlessLLM:
         * If ``public_url`` is passed: connect to that existing endpoint and return it.
         * If ``TOKENLESS_PUBLIC_URL`` is set: wait for the tunnel URL and return it;
           ``chat()`` uses that endpoint.
+        * If ``file_path`` points to a PDF: upload it as a private Kaggle dataset,
+          convert it to Markdown in the Kaggle kernel, and return the Markdown
+          directly unless ``kaggle_prompt`` is also passed.
         * Else with Kaggle credentials: run a script kernel — lightweight smoke for
           most models, or a full ``gpt-oss:20b`` Ollama batch job when ``model`` is
           ``gpt-oss:20b``. The returned string is stored in the notebook manager and
@@ -191,6 +196,8 @@ class TokenlessLLM:
             return self._start(
                 timeout=timeout,
                 public_url=public_url,
+                file_path=file_path,
+                pdf_context=pdf_context,
                 kaggle_prompt=kaggle_prompt,
                 kaggle_system_prompt=kaggle_system_prompt,
                 smoke_status_timeout=smoke_status_timeout,
@@ -210,6 +217,8 @@ class TokenlessLLM:
         timeout: int = 300,
         *,
         public_url: Optional[str] = None,
+        file_path: Optional[str] = None,
+        pdf_context: bool = False,
         kaggle_prompt: Optional[str] = None,
         kaggle_system_prompt: Optional[str] = None,
         smoke_status_timeout: int = 1800,
@@ -221,6 +230,8 @@ class TokenlessLLM:
         gpt_oss_accelerator: Optional[str] = "NvidiaTeslaT4",
         progress_callback=None,
     ) -> str:
+        if public_url and file_path:
+            raise ValueError("file_path PDF conversion runs on Kaggle and cannot use public_url.")
         if public_url:
             if progress_callback:
                 progress_callback("Connecting to existing endpoint")
@@ -234,6 +245,8 @@ class TokenlessLLM:
             return self._base_url
 
         self._notebook.launch(
+            file_path=file_path,
+            pdf_context=pdf_context,
             kaggle_prompt=kaggle_prompt,
             kaggle_system_prompt=kaggle_system_prompt,
             smoke_status_timeout=smoke_status_timeout,
