@@ -22,7 +22,37 @@ Install from PyPI:
 ```bash
 pip install tokenless
 ```
+## Kaggle Credentials
 
+Tokenless needs your Kaggle username and API key to create private Kaggle
+kernels. Create an API token from your Kaggle account settings, then use one of
+the methods below.
+
+### Python
+
+Pass credentials directly when creating the client:
+
+```python
+from tokenless import TokenlessLLM
+
+llm = TokenlessLLM(
+    model="gpt-oss:20b",
+    kaggle_username="your_username",
+    kaggle_key="your_api_key",
+)
+```
+
+Or set environment variables inside Python before calling `start()`:
+
+```python
+import os
+from tokenless import TokenlessLLM
+
+os.environ["KAGGLE_USERNAME"] = "your_username"
+os.environ["KAGGLE_KEY"] = "your_api_key"
+
+llm = TokenlessLLM(model="gpt-oss:20b")
+```
 Set your Kaggle credentials, then run your first prompt:
 
 ```python
@@ -60,38 +90,6 @@ answer = llm.start(
     file_path="paper.pdf",
     kaggle_prompt="Summarize this PDF in five bullets.",
 )
-```
-
-## Kaggle Credentials
-
-Tokenless needs your Kaggle username and API key to create private Kaggle
-kernels. Create an API token from your Kaggle account settings, then use one of
-the methods below.
-
-### Python
-
-Pass credentials directly when creating the client:
-
-```python
-from tokenless import TokenlessLLM
-
-llm = TokenlessLLM(
-    model="gpt-oss:20b",
-    kaggle_username="your_username",
-    kaggle_key="your_api_key",
-)
-```
-
-Or set environment variables inside Python before calling `start()`:
-
-```python
-import os
-from tokenless import TokenlessLLM
-
-os.environ["KAGGLE_USERNAME"] = "your_username"
-os.environ["KAGGLE_KEY"] = "your_api_key"
-
-llm = TokenlessLLM(model="gpt-oss:20b")
 ```
 
 ## Supported Models
