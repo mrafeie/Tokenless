@@ -55,95 +55,6 @@ def _decode_b64(value: str) -> str:
     return base64.b64decode(value).decode("utf-8")
 
 
-def _clean_source_label(value: str) -> str:
-    value = re.sub(r"\s+", " ", value or "").strip()
-    return value.replace("|", "/") if value else "unknown"
-
-
-def _first_text_line(block: str) -> str:
-    for line in block.splitlines():
-        line = line.strip()
-        if line:
-            return line
-    return ""
-
-
-def _update_source_context(block: str, section: str) -> str:
-    first_line = _first_text_line(block)
-    heading = re.match(r"^#{1,6}\s+(.+?)\s*#*$", first_line)
-    label = heading.group(1).strip() if heading else first_line
-    section_match = re.match(
-        r"^(?:section|sec\.|§)\s+([A-Za-z0-9IVXLCDMivxlcdm_.-]+)(?:\s*[:.-]\s*(.+))?$",
-        label,
-        flags=re.IGNORECASE,
-    )
-    if heading:
-        section = label
-    if section_match:
-        section = label
-    return section
-
-
-def _chunk_page_number(chunk: dict, fallback: int) -> int:
-    metadata = chunk.get("metadata") or {}
-    for key in ("page", "page_number", "page_index"):
-        value = chunk.get(key, metadata.get(key))
-        if isinstance(value, int):
-            return value + 1 if key == "page_index" else value
-    return fallback
-
-
-def _chunk_text(chunk: dict) -> str:
-    for key in ("text", "markdown", "content"):
-        value = chunk.get(key)
-        if isinstance(value, str):
-            return value
-    return ""
-
-
-def _chunk_section_hint(chunk: dict) -> str:
-    toc_items = chunk.get("toc_items") or []
-    if not toc_items:
-        return ""
-    item = sorted(toc_items, key=lambda entry: entry[0] if entry else 0)[-1]
-    return str(item[1]).strip() if len(item) > 1 else ""
-
-
-def _add_pdf_source_markers(page_chunks) -> str:
-    if isinstance(page_chunks, str):
-        page_chunks = [{"text": page_chunks, "page": 1}]
-
-    output = []
-    current_section = "unknown"
-    for fallback_page, chunk in enumerate(page_chunks, start=1):
-        if not isinstance(chunk, dict):
-            continue
-        page_number = _chunk_page_number(chunk, fallback_page)
-        section_hint = _chunk_section_hint(chunk)
-        if section_hint:
-            current_section = section_hint
-        output.append(f"<!-- tokenless-page: page={page_number} -->")
-
-        text = _chunk_text(chunk).strip()
-        for block in re.split(r"\n\s*\n", text):
-            block = block.strip()
-            if not block:
-                continue
-            current_section = _update_source_context(
-                block,
-                current_section,
-            )
-            output.append(
-                "[source: "
-                f"page={page_number} | "
-                f"section={_clean_source_label(current_section)}"
-                "]"
-            )
-            output.append(block)
-
-    return "\n\n".join(output).strip()
-
-
 def _install_pdf_tools() -> None:
     print("Installing PDF conversion tools...", flush=True)
     _publish("Installing PDF conversion tools")
@@ -196,12 +107,8 @@ def _pdf_to_markdown(pdf_path: Path) -> str:
         print(f"OCR pass failed; trying direct Markdown conversion: {e!r}", flush=True)
         source = pdf_path
 
-    print("Converting PDF to source-aware Markdown...", flush=True)
-    try:
-        page_chunks = pymupdf4llm.to_markdown(str(source), page_chunks=True)
-    except TypeError:
-        page_chunks = pymupdf4llm.to_markdown(str(source))
-    markdown = _add_pdf_source_markers(page_chunks)
+    print("Converting PDF to Markdown...", flush=True)
+    markdown = pymupdf4llm.to_markdown(str(source))
     if not markdown.strip():
         _fail("PDF conversion produced empty Markdown.")
     PDF_MARKDOWN.write_text(markdown, encoding="utf-8")
@@ -231,10 +138,9 @@ def _inject_pdf_context(payload: dict) -> dict:
             break
     selected_context = _select_pdf_context(markdown, question)
     context = (
-        "You are answering questions about an uploaded PDF. Use the source-aware "
-        "Markdown context below as the source of truth. Each block has page and "
-        "section source markers. If the answer is not in the PDF, say you cannot "
-        "find it in the document.\n\n"
+        "You are answering questions about an uploaded PDF. Use the Markdown "
+        "context below as the source of truth. If the answer is not in the PDF, "
+        "say you cannot find it in the document.\n\n"
         f"<pdf_markdown>\n{selected_context}\n</pdf_markdown>"
     )
     if messages and messages[0].get("role") == "system":

@@ -73,8 +73,7 @@ installs Ollama, downloads the model, and opens the public endpoint. Pass
 
 For `gpt-oss:20b`, `start()` can upload a PDF to Kaggle as a temporary private
 dataset and convert it to Markdown inside the Kaggle kernel. This supports both
-text PDFs and scanned/image PDFs. The returned Markdown includes source markers
-for each block with page and section metadata.
+text PDFs and scanned/image PDFs.
 
 ```python
 from tokenless import TokenlessLLM
@@ -82,12 +81,6 @@ from tokenless import TokenlessLLM
 llm = TokenlessLLM(model="gpt-oss:20b")
 markdown = llm.start(file_path="paper.pdf")
 print(markdown)
-```
-
-Example marker:
-
-```markdown
-[source: page=3 | section=Results]
 ```
 
 Pass `kaggle_prompt` as well to ask the model about the converted Markdown:
