@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">How Tokenless Works</title>
+  <desc id="desc">A flow diagram showing a local Python app using TokenlessLLM to start a private Kaggle GPU kernel, run Ollama with gpt-oss 20b, expose an OpenAI-compatible endpoint through a temporary Cloudflare tunnel, and connect to app frameworks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="0.52" stop-color="#f4f7fb"/>
+      <stop offset="1" stop-color="#fff8ef"/>
+    </linearGradient>
+    <linearGradient id="localFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8f7ff"/>
+      <stop offset="1" stop-color="#d9eef8"/>
+    </linearGradient>
+    <linearGradient id="kaggleFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ecfdf3"/>
+      <stop offset="1" stop-color="#dff6e9"/>
+    </linearGradient>
+    <linearGradient id="endpointFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff5dc"/>
+      <stop offset="1" stop-color="#ffe8bf"/>
+    </linearGradient>
+    <linearGradient id="appFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2ecff"/>
+      <stop offset="1" stop-color="#e6ddfb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1f2937" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowSoft" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M1 1 L11 6 L1 11 Z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 800 42px/1.1 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; letter-spacing: 0; }
+      .subtitle { font: 500 18px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .label { font: 800 19px/1.2 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; letter-spacing: 0; }
+      .small { font: 500 14px/1.35 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; }
+      .tiny { font: 700 12px/1 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #475569; letter-spacing: 0.04em; }
+      .mono { font: 700 13px/1.25 "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #334155; }
+      .pillText { font: 800 13px/1 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f172a; letter-spacing: 0; }
+      .card { stroke: rgba(15, 23, 42, 0.12); stroke-width: 1.2; rx: 22; filter: url(#shadow); }
+      .step { fill: #ffffff; stroke: rgba(15, 23, 42, 0.12); stroke-width: 1; rx: 16; }
+      .line { fill: none; stroke: #2563eb; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .softLine { fill: none; stroke: #64748b; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 7 8; marker-end: url(#arrowSoft); }
+      .chip { fill: rgba(255, 255, 255, 0.72); stroke: rgba(15, 23, 42, 0.1); stroke-width: 1; rx: 999; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="760" fill="url(#bg)"/>
+  <path d="M0 650 C170 596 270 724 456 663 C648 600 693 535 865 608 C1008 669 1116 606 1200 575 L1200 760 L0 760 Z" fill="#e2f1ff" opacity="0.55"/>
+  <path d="M0 83 C190 34 339 103 505 73 C656 46 752 -8 911 38 C1035 74 1124 70 1200 43 L1200 0 L0 0 Z" fill="#ffffff" opacity="0.68"/>
+
+  <text x="78" y="78" class="title">How Tokenless Works</text>
+  <text x="80" y="112" class="subtitle">Run local Python calls against a private Kaggle GPU kernel through an OpenAI-compatible endpoint.</text>
+
+  <g transform="translate(78 166)">
+    <rect class="card" width="246" height="390" fill="url(#localFill)"/>
+    <g transform="translate(26 28)">
+      <rect x="0" y="0" width="58" height="58" rx="16" fill="#0ea5e9"/>
+      <path d="M18 38 h22 M18 29 h14 M18 20 h22" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+      <text x="74" y="22" class="tiny">LOCAL MACHINE</text>
+      <text x="74" y="49" class="label">Python app</text>
+    </g>
+
+    <g transform="translate(26 120)">
+      <rect class="step" width="194" height="86"/>
+      <text x="18" y="30" class="mono">TokenlessLLM</text>
+      <text x="18" y="56" class="small">Manages lifecycle,</text>
+      <text x="18" y="76" class="small">prompts, and cleanup.</text>
+    </g>
+
+    <g transform="translate(26 230)">
+      <rect class="step" width="194" height="116"/>
+      <text x="18" y="31" class="mono">llm.start()</text>
+      <text x="18" y="58" class="small">Uploads a long-running</text>
+      <text x="18" y="78" class="small">private script kernel.</text>
+      <rect x="18" y="92" width="92" height="20" class="chip"/>
+      <text x="30" y="107" class="pillText">credentials</text>
+    </g>
+  </g>
+
+  <g transform="translate(475 145)">
+    <rect class="card" width="292" height="430" fill="url(#kaggleFill)"/>
+    <g transform="translate(30 30)">
+      <rect x="0" y="0" width="62" height="62" rx="18" fill="#16a34a"/>
+      <path d="M18 40 L31 17 L44 40 Z" fill="#ffffff"/>
+      <path d="M22 40 h18" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+      <text x="80" y="23" class="tiny">PRIVATE KAGGLE GPU</text>
+      <text x="80" y="50" class="label">Runtime kernel</text>
+    </g>
+
+    <g transform="translate(32 122)">
+      <rect class="step" width="228" height="70"/>
+      <circle cx="28" cy="35" r="16" fill="#dcfce7"/>
+      <text x="23" y="40" class="pillText">1</text>
+      <text x="56" y="31" class="small">Install dependencies</text>
+      <text x="56" y="52" class="small">and start Ollama.</text>
+    </g>
+
+    <g transform="translate(32 210)">
+      <rect class="step" width="228" height="84"/>
+      <circle cx="28" cy="42" r="16" fill="#dcfce7"/>
+      <text x="23" y="47" class="pillText">2</text>
+      <text x="56" y="34" class="small">Pull requested model,</text>
+      <text x="56" y="55" class="mono">gpt-oss:20b</text>
+    </g>
+
+    <g transform="translate(32 312)">
+      <rect class="step" width="228" height="76"/>
+      <circle cx="28" cy="38" r="16" fill="#dcfce7"/>
+      <text x="23" y="43" class="pillText">3</text>
+      <text x="56" y="32" class="small">Keep the endpoint alive</text>
+      <text x="56" y="53" class="small">until <tspan class="mono">llm.stop()</tspan>.</text>
+    </g>
+  </g>
+
+  <g transform="translate(837 182)">
+    <rect class="card" width="286" height="145" fill="url(#endpointFill)"/>
+    <g transform="translate(26 26)">
+      <rect x="0" y="0" width="56" height="56" rx="16" fill="#f59e0b"/>
+      <path d="M18 28 c0 -9 6 -15 14 -15 c8 0 14 6 14 15 c0 9 -6 15 -14 15 c-8 0 -14 -6 -14 -15 Z" fill="none" stroke="#ffffff" stroke-width="4"/>
+      <path d="M14 28 h36 M32 14 c5 7 5 21 0 28 M32 14 c-5 7 -5 21 0 28" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+      <text x="74" y="21" class="tiny">TEMPORARY PUBLIC URL</text>
+      <text x="74" y="47" class="label">Cloudflare tunnel</text>
+    </g>
+    <text x="28" y="106" class="small">Posts the tunnel URL back through</text>
+    <text x="28" y="126" class="small">a one-time rendezvous topic.</text>
+  </g>
+
+  <g transform="translate(837 392)">
+    <rect class="card" width="286" height="214" fill="url(#appFill)"/>
+    <g transform="translate(26 26)">
+      <rect x="0" y="0" width="56" height="56" rx="16" fill="#7c3aed"/>
+      <path d="M18 21 h20 a7 7 0 0 1 0 14 H28 l-8 8 v-8 h-2 a7 7 0 0 1 0 -14 Z" fill="#ffffff"/>
+      <text x="74" y="21" class="tiny">OPENAI-COMPATIBLE</text>
+      <text x="74" y="47" class="label">App integrations</text>
+    </g>
+    <g transform="translate(28 104)">
+      <rect class="chip" width="110" height="30"/>
+      <text x="18" y="20" class="pillText">Agents SDK</text>
+      <rect x="126" y="0" class="chip" width="86" height="30"/>
+      <text x="148" y="20" class="pillText">Strands</text>
+      <rect x="0" y="44" class="chip" width="96" height="30"/>
+      <text x="22" y="64" class="pillText">LangChain</text>
+      <rect x="112" y="44" class="chip" width="118" height="30"/>
+      <text x="133" y="64" class="pillText">Plain Python</text>
+    </g>
+    <text x="28" y="194" class="small">Prompts go out; responses stream back.</text>
+  </g>
+
+  <g transform="translate(145 618)">
+    <rect x="0" y="0" width="910" height="74" rx="22" fill="#ffffff" stroke="rgba(15, 23, 42, 0.12)" filter="url(#shadow)"/>
+    <g transform="translate(28 18)">
+      <rect x="0" y="0" width="38" height="38" rx="12" fill="#e0f2fe"/>
+      <path d="M12 20 h14 M20 12 v16" stroke="#0284c7" stroke-width="3.5" stroke-linecap="round"/>
+      <text x="54" y="17" class="tiny">OPTIONAL PDF INPUT</text>
+      <text x="54" y="39" class="small">Tokenless can upload a private PDF dataset, convert it to Markdown inside Kaggle, and use that server-side context for later questions.</text>
+    </g>
+  </g>
+
+  <path class="line" d="M324 360 C376 360 405 360 467 360"/>
+  <text x="350" y="336" class="tiny">START KERNEL</text>
+
+  <path class="line" d="M767 248 C795 248 805 248 829 248"/>
+  <text x="778" y="224" class="tiny">OPEN TUNNEL</text>
+
+  <path class="line" d="M981 327 C981 350 981 364 981 384"/>
+  <text x="1000" y="363" class="tiny">API CALLS</text>
+
+  <path class="softLine" d="M837 520 C742 545 625 545 525 514 C431 486 357 463 291 442"/>
+  <text x="464" y="552" class="tiny">RESPONSES RETURN TO LOCAL CLIENT</text>
+
+  <path class="softLine" d="M398 655 C440 641 462 620 504 573"/>
+  <text x="232" y="652" class="tiny">PRIVATE UPLOAD WHEN NEEDED</text>
+
+  <g transform="translate(80 582)">
+    <rect width="200" height="34" rx="17" fill="#0f172a" opacity="0.92"/>
+    <text x="18" y="22" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="800" fill="#ffffff">llm.stop() deletes the kernel</text>
+  </g>
+</svg>
